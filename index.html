@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dolor y clima</title>
+<meta name="theme-color" content="#17222D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Dolor y clima">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#E8EDF1; --surface:#FFFFFF; --ink:#17222D; --muted:#566473; --line:#C7D1DA;
+  --pain:#C2185B; --pres:#2F6DB5; --dp:#6A4FB3; --hum:#1C8577; --temp:#B9770E;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F151C; --surface:#18212B; --ink:#E4EBF2; --muted:#98A6B4; --line:#2C3946;
+    --pain:#F06292; --pres:#6FA3E6; --dp:#A48CEB; --hum:#4CC1B1; --temp:#E6B04A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F151C; --surface:#18212B; --ink:#E4EBF2; --muted:#98A6B4; --line:#2C3946;
+  --pain:#F06292; --pres:#6FA3E6; --dp:#A48CEB; --hum:#4CC1B1; --temp:#E6B04A;
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:17px;line-height:1.45;-webkit-text-size-adjust:100%}
+main{max-width:720px;margin:0 auto;padding:22px 18px 56px}
+h1{font-size:clamp(2.1rem,8vw,3.2rem);font-weight:800;line-height:1;letter-spacing:-0.025em;margin:6px 0 10px}
+.lede{color:var(--muted);margin:0 0 26px;max-width:46ch}
+h2{font-size:1.3rem;font-weight:600;margin:0 0 12px;letter-spacing:-0.01em}
+section{margin-top:34px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--pres);outline-offset:2px}
+
+/* Escala de dolor */
+.readout{display:flex;align-items:baseline;gap:14px;margin-bottom:14px;min-height:5.2rem}
+.readout .num{font-size:5rem;font-weight:800;line-height:1;color:var(--pain);font-variant-numeric:tabular-nums;letter-spacing:-0.04em}
+.readout .num.empty{color:var(--line)}
+.readout .word{font-size:1.15rem;font-weight:600}
+.scale{display:grid;grid-template-columns:repeat(11,1fr);gap:4px}
+.scale button{
+  height:56px;border:0;border-radius:10px;cursor:pointer;font-weight:600;font-size:1rem;
+  background:color-mix(in srgb,var(--pain) calc(var(--l) * 9%),var(--surface));
+  color:var(--ink);box-shadow:inset 0 0 0 1px var(--line);
+  transition:transform .15s ease;
+}
+.scale button[data-hi]{color:#fff;box-shadow:none}
+.scale button[aria-pressed="true"]{transform:translateY(-6px);box-shadow:0 0 0 3px var(--ink)}
+.scale-ends{display:flex;justify-content:space-between;color:var(--muted);font-size:.85rem;margin-top:6px}
+
+/* Formulario */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media (max-width:520px){.grid3{grid-template-columns:1fr}}
+label{display:block;font-size:.9rem;font-weight:600;margin-bottom:4px}
+.field{display:flex;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:0 12px}
+.field input,.field textarea{flex:1;min-width:0;border:0;background:transparent;padding:12px 0;outline:none}
+.field:focus-within{outline:3px solid var(--pres);outline-offset:1px}
+.field .unit{color:var(--muted);font-size:.9rem;margin-left:6px}
+.v-pres{border-left:5px solid var(--pres)} .v-hum{border-left:5px solid var(--hum)} .v-temp{border-left:5px solid var(--temp)}
+.hint{color:var(--muted);font-size:.85rem;margin:6px 0 0}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.row .grow{flex:1 1 180px}
+.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:600;cursor:pointer;background:var(--bg);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.primary{background:var(--ink);color:var(--surface);box-shadow:none;width:100%;padding:16px;font-size:1.05rem}
+.btn:disabled{opacity:.55;cursor:default}
+.stack>*+*{margin-top:16px}
+.status{font-size:.9rem;color:var(--muted);min-height:1.3em;margin:8px 0 0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);
+  background:var(--ink);color:var(--surface);padding:10px 18px;border-radius:999px;font-weight:600;opacity:0;pointer-events:none;transition:.25s}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Análisis */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chip{border:0;border-radius:999px;padding:8px 14px;cursor:pointer;font-weight:600;font-size:.92rem;background:var(--bg);box-shadow:inset 0 0 0 1px var(--line)}
+.chip[aria-pressed="true"]{background:var(--c);color:#fff;box-shadow:none}
+.chart-wrap{position:relative;height:280px}
+.findings{list-style:none;margin:16px 0 0;padding:0}
+.findings li{padding:10px 0 10px 14px;border-left:4px solid var(--c);margin-bottom:8px}
+.findings b{display:block}
+.findings span{color:var(--muted);font-size:.92rem}
+.empty-note{color:var(--muted);margin:0}
+
+/* Historial */
+.entries{list-style:none;margin:0;padding:0}
+.entry{display:grid;grid-template-columns:3.2rem 1fr auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.entry:last-child{border-bottom:0}
+.entry .lv{font-size:2rem;font-weight:800;color:var(--pain);text-align:center;font-variant-numeric:tabular-nums}
+.entry .when{font-weight:600}
+.entry .wx,.entry .note{color:var(--muted);font-size:.9rem}
+.del{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:8px;border-radius:8px;font-size:.9rem}
+.del:hover{color:var(--pain)}
+.store-note{color:var(--muted);font-size:.85rem;margin-top:10px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <h1>¿Cómo está tu pierna hoy?</h1>
+  <p class="lede">Anota tu dolor junto con el clima del momento. Con el tiempo verás si la presión, la humedad o la temperatura se mueven junto con tu dolor.</p>
+
+  <section aria-labelledby="h-dolor" style="margin-top:0">
+    <div class="panel">
+      <div class="readout" aria-live="polite">
+        <span class="num empty" id="painNum">–</span>
+        <span class="word" id="painWord">Elige un nivel</span>
+      </div>
+      <div class="scale" id="scale" role="group" aria-label="Nivel de dolor de 0 a 10"></div>
+      <div class="scale-ends"><span>Sin dolor</span><span>El peor imaginable</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-clima">
+    <h2 id="h-clima">Clima en ese momento</h2>
+    <div class="panel stack">
+      <div class="row">
+        <div class="grow">
+          <label for="city">Ciudad</label>
+          <div class="field"><input id="city" autocomplete="address-level2" placeholder="Ej: Santiago"></div>
+        </div>
+        <button class="btn" id="autoBtn" type="button">Traer clima</button>
+        <button class="btn" id="geoBtn" type="button">Usar mi ubicación</button>
+      </div>
+      <p class="status" id="wxStatus"></p>
+      <div class="grid3">
+        <div>
+          <label for="pres">Presión</label>
+          <div class="field v-pres"><input id="pres" type="number" inputmode="decimal" step="0.1" placeholder="1013"><span class="unit">hPa</span></div>
+        </div>
+        <div>
+          <label for="hum">Humedad</label>
+          <div class="field v-hum"><input id="hum" type="number" inputmode="decimal" step="1" min="0" max="100" placeholder="60"><span class="unit">%</span></div>
+        </div>
+        <div>
+          <label for="temp">Temperatura</label>
+          <div class="field v-temp"><input id="temp" type="number" inputmode="decimal" step="0.1" placeholder="18"><span class="unit">°C</span></div>
+        </div>
+      </div>
+      <p class="hint">El clima se busca para la fecha y hora que indiques abajo (hasta 7 días atrás), con datos de Open-Meteo. La presión es a nivel del mar.</p>
+      <div>
+        <label for="when">Fecha y hora</label>
+        <div class="field"><input id="when" type="datetime-local"></div>
+      </div>
+      <div>
+        <label for="note">Nota (opcional)</label>
+        <div class="field"><textarea id="note" rows="2" placeholder="Ej: caminé mucho, dormí mal…"></textarea></div>
+      </div>
+      <button class="btn primary" id="saveBtn" type="button">Guardar registro</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-analisis">
+    <h2 id="h-analisis">Dolor frente al clima</h2>
+    <div class="panel">
+      <div class="chips" id="chips" role="group" aria-label="Variable a comparar"></div>
+      <div class="chart-wrap"><canvas id="chart" aria-label="Gráfico de dolor y clima"></canvas></div>
+      <ul class="findings" id="findings"></ul>
+      <p class="hint">Una relación no prueba que el clima cause el dolor: el sueño, la actividad o los medicamentos también influyen. Muestra estos datos a tu médico si te sirven.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-hist">
+    <h2 id="h-hist">Tus registros</h2>
+    <div class="panel">
+      <ul class="entries" id="entries"><li class="empty-note">Cargando…</li></ul>
+      <p class="store-note" id="storeNote">Tus registros se guardan solo en este celular. Descarga un respaldo de vez en cuando.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-resp">
+    <h2 id="h-resp">Respaldo y exportación</h2>
+    <div class="panel row">
+      <button class="btn" id="expJson" type="button">Descargar respaldo</button>
+      <button class="btn" id="impJson" type="button">Restaurar respaldo</button>
+      <button class="btn" id="expCsv" type="button">Exportar a Excel (CSV)</button>
+      <input type="file" id="impFile" accept="application/json,.json" hidden>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const WORDS = ["Sin dolor","Muy leve","Leve","Leve","Moderado","Moderado","Intenso","Intenso","Muy intenso","Muy intenso","Insoportable"];
+const VARS = {
+  pres: {label:"Presión", unit:"hPa", css:"--pres"},
+  dp:   {label:"Cambio de presión", unit:"hPa", css:"--dp"},
+  hum:  {label:"Humedad", unit:"%", css:"--hum"},
+  temp: {label:"Temperatura", unit:"°C", css:"--temp"}
+};
+const KEY = "dc-entries";
+let pain = null, entries = [], chart = null, current = "pres", coords = null;
+
+/* ---------- Escala ---------- */
+const scale = $("#scale");
+for (let i = 0; i <= 10; i++) {
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = i; b.style.setProperty("--l", i);
+  if (i >= 6) b.dataset.hi = "";
+  b.setAttribute("aria-pressed", "false");
+  b.setAttribute("aria-label", `${i}: ${WORDS[i]}`);
+  b.onclick = () => setPain(i);
+  scale.appendChild(b);
+}
+function setPain(v) {
+  pain = v;
+  [...scale.children].forEach((b, i) => b.setAttribute("aria-pressed", String(i === v)));
+  const n = $("#painNum");
+  n.textContent = v === null ? "–" : v;
+  n.classList.toggle("empty", v === null);
+  $("#painWord").textContent = v === null ? "Elige un nivel" : WORDS[v];
+}
+
+/* ---------- Utilidades ---------- */
+const pad = n => String(n).padStart(2, "0");
+function toLocalInput(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+const fmtDate = new Intl.DateTimeFormat("es-CL", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"});
+const fmtShort = new Intl.DateTimeFormat("es-CL", {day:"numeric", month:"short"});
+function num(id) { const v = $(id).value.trim().replace(",", "."); return v === "" ? null : Number(v); }
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("show"), 2400); }
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+function download(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+$("#when").value = toLocalInput(new Date());
+const savedLoc = lsGet("dc-loc", null);
+if (savedLoc) { $("#city").value = savedLoc.label || ""; coords = savedLoc; }
+
+/* ---------- Datos ---------- */
+function load() { entries = lsGet(KEY, []).filter(e => e && typeof e.t === "number" && typeof e.pain === "number"); entries.sort((a, b) => a.t - b.t); render(); }
+function persist() { if (!lsSet(KEY, entries)) toast("No se pudo guardar en este celular."); }
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+/* ---------- Clima (Open-Meteo, sin clave) ---------- */
+async function geocode(city) {
+  const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=es`);
+  const g = await r.json();
+  if (!g.results || !g.results.length) return null;
+  const h = g.results[0];
+  return { lat: h.latitude, lon: h.longitude, label: [h.name, h.admin1, h.country].filter(Boolean).join(", "), city };
+}
+async function weatherAt(lat, lon, when) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&hourly=temperature_2m,relative_humidity_2m,pressure_msl&past_days=7&forecast_days=1&timeformat=unixtime&timezone=auto`;
+  const w = await (await fetch(url)).json();
+  const h = w.hourly; if (!h || !h.time) throw new Error("sin datos");
+  const target = when.getTime() / 1000;
+  let best = 0;
+  for (let i = 1; i < h.time.length; i++) if (Math.abs(h.time[i] - target) < Math.abs(h.time[best] - target)) best = i;
+  if (Math.abs(h.time[best] - target) > 2 * 3600) return null;
+  const prev = best >= 3 ? h.pressure_msl[best - 3] : null;
+  return {
+    pres: h.pressure_msl[best], hum: h.relative_humidity_2m[best], temp: h.temperature_2m[best],
+    trend: prev != null && h.pressure_msl[best] != null ? h.pressure_msl[best] - prev : null
+  };
+}
+async function fillWeather(loc) {
+  const st = $("#wxStatus");
+  const when = $("#when").value ? new Date($("#when").value) : new Date();
+  st.textContent = "Buscando el clima…";
+  try {
+    const w = await weatherAt(loc.lat, loc.lon, when);
+    if (!w) { st.textContent = "Solo hay datos de los últimos 7 días. Ingresa el clima a mano para esa fecha."; return; }
+    if (w.pres != null) $("#pres").value = Math.round(w.pres * 10) / 10;
+    if (w.hum != null) $("#hum").value = Math.round(w.hum);
+    if (w.temp != null) $("#temp").value = Math.round(w.temp * 10) / 10;
+    const tr = w.trend == null ? "" : w.trend <= -1 ? ", presión bajando" : w.trend >= 1 ? ", presión subiendo" : ", presión estable";
+    st.textContent = `Clima en ${loc.label}${tr}.`;
+  } catch (e) {
+    st.textContent = navigator.onLine === false
+      ? "Sin conexión a internet. Ingresa el clima a mano o inténtalo más tarde."
+      : "No se pudo obtener el clima. Inténtalo de nuevo o ingrésalo a mano.";
+  }
+}
+$("#autoBtn").onclick = async () => {
+  const city = $("#city").value.trim(), st = $("#wxStatus"), btn = $("#autoBtn");
+  if (!city) { st.textContent = "Escribe tu ciudad o usa tu ubicación."; $("#city").focus(); return; }
+  btn.disabled = true;
+  try {
+    let loc = coords && (coords.city === city || coords.label === city) ? coords : null;
+    if (!loc) {
+      st.textContent = "Buscando la ciudad…";
+      loc = await geocode(city);
+      if (!loc) { st.textContent = "No se encontró esa ciudad. Prueba agregando el país, por ejemplo “Temuco, Chile”."; return; }
+      coords = loc; lsSet("dc-loc", loc);
+    }
+    await fillWeather(loc);
+  } catch (e) { st.textContent = "No se pudo buscar la ciudad. Revisa tu conexión."; }
+  finally { btn.disabled = false; }
+};
+$("#geoBtn").onclick = () => {
+  const st = $("#wxStatus");
+  if (!navigator.geolocation) { st.textContent = "Este navegador no permite usar la ubicación. Escribe tu ciudad."; return; }
+  st.textContent = "Obteniendo tu ubicación…";
+  navigator.geolocation.getCurrentPosition(async p => {
+    const loc = { lat: p.coords.latitude, lon: p.coords.longitude, label: "tu ubicación actual", city: "" };
+    coords = loc; lsSet("dc-loc", loc); $("#city").value = "";
+    await fillWeather(loc);
+  }, () => { st.textContent = "No se pudo usar tu ubicación. Revisa el permiso o escribe tu ciudad."; }, { timeout: 15000, maximumAge: 600000 });
+};
+
+/* ---------- Guardar ---------- */
+$("#saveBtn").onclick = () => {
+  if (pain === null) { toast("Elige tu nivel de dolor."); scale.children[0].focus(); return; }
+  const when = $("#when").value ? new Date($("#when").value) : new Date();
+  const e = {
+    id: "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    t: when.getTime(), pain,
+    pres: num("#pres"), hum: num("#hum"), temp: num("#temp"),
+    note: $("#note").value.trim()
+  };
+  for (const k of ["pres", "hum", "temp"]) if (e[k] !== null && !isFinite(e[k])) e[k] = null;
+  entries.push(e); entries.sort((a, b) => a.t - b.t); persist();
+  setPain(null);
+  ["#pres", "#hum", "#temp", "#note"].forEach(s => $(s).value = "");
+  $("#when").value = toLocalInput(new Date());
+  $("#wxStatus").textContent = "";
+  toast("Registro guardado.");
+  render();
+};
+
+/* ---------- Respaldo ---------- */
+$("#expJson").onclick = () => {
+  if (!entries.length) { toast("Aún no hay registros para respaldar."); return; }
+  const d = new Date();
+  download(`dolor-y-clima-respaldo-${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}.json`, JSON.stringify({ app: "dolor-y-clima", v: 1, entries }, null, 1), "application/json");
+};
+$("#impJson").onclick = () => $("#impFile").click();
+$("#impFile").onchange = async ev => {
+  const f = ev.target.files[0]; ev.target.value = "";
+  if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    const list = Array.isArray(data) ? data : data.entries;
+    if (!Array.isArray(list)) throw 0;
+    const ids = new Set(entries.map(e => e.id));
+    let added = 0;
+    for (const e of list) if (e && typeof e.t === "number" && typeof e.pain === "number" && !ids.has(e.id)) { entries.push(e); ids.add(e.id); added++; }
+    entries.sort((a, b) => a.t - b.t); persist(); render();
+    toast(added ? `Se agregaron ${added} registros.` : "No había registros nuevos en el respaldo.");
+  } catch (e) { toast("Ese archivo no es un respaldo válido."); }
+};
+$("#expCsv").onclick = () => {
+  if (!entries.length) { toast("Aún no hay registros para exportar."); return; }
+  const rows = series();
+  const q = v => v == null ? "" : /[;"\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+  const dec = v => v == null ? "" : String(v).replace(".", ",");
+  const lines = ["Fecha;Hora;Dolor;Presión (hPa);Cambio de presión (hPa);Humedad (%);Temperatura (°C);Nota"];
+  for (const r of rows) {
+    const d = new Date(r.t);
+    lines.push([`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`, `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      r.pain, dec(r.pres), dec(r.dp), dec(r.hum), dec(r.temp), q(r.note)].join(";"));
+  }
+  download("dolor-y-clima.csv", "\ufeff" + lines.join("\r\n"), "text/csv;charset=utf-8");
+};
+
+/* ---------- Análisis ---------- */
+function series() {
+  return entries.map((e, i) => {
+    let dp = null;
+    const p = entries[i - 1];
+    if (p && e.pres != null && p.pres != null && e.t - p.t <= 48 * 3600e3) dp = Math.round((e.pres - p.pres) * 10) / 10;
+    return { ...e, dp };
+  });
+}
+function pearson(rows, key) {
+  const pts = rows.filter(r => r[key] != null);
+  const n = pts.length;
+  if (n < 5) return { n, r: null };
+  const mx = pts.reduce((s, r) => s + r[key], 0) / n, my = pts.reduce((s, r) => s + r.pain, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (const r of pts) { const dx = r[key] - mx, dy = r.pain - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
+  if (!sxx || !syy) return { n, r: 0 };
+  return { n, r: sxy / Math.sqrt(sxx * syy) };
+}
+const DIR = {
+  pres: ["más dolor cuando la presión está baja", "más dolor cuando la presión está alta"],
+  dp:   ["más dolor cuando la presión viene bajando", "más dolor cuando la presión viene subiendo"],
+  hum:  ["más dolor cuando hay poca humedad", "más dolor cuando hay más humedad"],
+  temp: ["más dolor cuando hace frío", "más dolor cuando hace calor"]
+};
+function finding(key, { n, r }) {
+  if (r === null) return { head: "Aún sin datos suficientes", body: `${n} de 5 registros necesarios con este dato.` };
+  const a = Math.abs(r);
+  const lvl = a < 0.2 ? null : a < 0.4 ? "Relación débil" : a < 0.6 ? "Relación moderada" : "Relación fuerte";
+  const rs = `r = ${r.toFixed(2).replace(".", ",")}, ${n} registros`;
+  if (!lvl) return { head: "Sin relación clara", body: rs };
+  return { head: `${lvl}: ${DIR[key][r > 0 ? 1 : 0]}`, body: rs };
+}
+const chips = $("#chips");
+for (const [k, v] of Object.entries(VARS)) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "chip"; b.textContent = v.label;
+  b.style.setProperty("--c", `var(${v.css})`);
+  b.setAttribute("aria-pressed", String(k === current));
+  b.onclick = () => { current = k; [...chips.children].forEach(c => c.setAttribute("aria-pressed", String(c === b))); drawChart(); };
+  chips.appendChild(b);
+}
+function drawChart() {
+  if (typeof Chart === "undefined") return;
+  const rows = series(), v = VARS[current];
+  const ink = cssVar("--ink"), muted = cssVar("--muted"), line = cssVar("--line"), pc = cssVar("--pain"), vc = cssVar(v.css);
+  if (chart) chart.destroy();
+  chart = new Chart($("#chart"), {
+    type: "line",
+    data: {
+      labels: rows.map(r => fmtShort.format(new Date(r.t))),
+      datasets: [
+        { label: "Dolor", data: rows.map(r => r.pain), borderColor: pc, backgroundColor: pc, yAxisID: "y", tension: .3, pointRadius: 4 },
+        { label: `${v.label} (${v.unit})`, data: rows.map(r => r[current]), borderColor: vc, backgroundColor: vc, yAxisID: "y1", tension: .3, pointRadius: 3, spanGaps: true, borderDash: [6, 4] }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { labels: { color: ink, boxWidth: 12, font: { family: "Bricolage Grotesque" } } },
+        tooltip: { callbacks: { title: items => fmtDate.format(new Date(rows[items[0].dataIndex].t)) } }
+      },
+      scales: {
+        x: { ticks: { color: muted, maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }, grid: { color: line } },
+        y: { min: 0, max: 10, ticks: { color: pc, stepSize: 2 }, grid: { color: line }, title: { display: true, text: "Dolor", color: pc } },
+        y1: { position: "right", ticks: { color: vc }, grid: { drawOnChartArea: false }, title: { display: true, text: v.unit, color: vc } }
+      }
+    }
+  });
+}
+function render() {
+  const rows = series(), f = $("#findings"); f.innerHTML = "";
+  for (const [k, v] of Object.entries(VARS)) {
+    const { head, body } = finding(k, pearson(rows, k));
+    const li = document.createElement("li"); li.style.setProperty("--c", `var(${v.css})`);
+    const b = document.createElement("b"); b.textContent = `${v.label}: ${head}`;
+    const s = document.createElement("span"); s.textContent = body;
+    li.append(b, s); f.appendChild(li);
+  }
+  drawChart();
+  const ul = $("#entries"); ul.innerHTML = "";
+  if (!entries.length) {
+    const li = document.createElement("li"); li.className = "empty-note";
+    li.textContent = "Todavía no hay registros. Elige tu nivel de dolor arriba y guarda el primero.";
+    ul.appendChild(li); return;
+  }
+  for (const e of [...entries].reverse()) {
+    const li = document.createElement("li"); li.className = "entry";
+    const lv = document.createElement("div"); lv.className = "lv"; lv.textContent = e.pain;
+    const mid = document.createElement("div");
+    const w = document.createElement("div"); w.className = "when"; w.textContent = fmtDate.format(new Date(e.t));
+    const wx = document.createElement("div"); wx.className = "wx";
+    const parts = [];
+    if (e.pres != null) parts.push(`${e.pres} hPa`);
+    if (e.hum != null) parts.push(`${e.hum} %`);
+    if (e.temp != null) parts.push(`${e.temp} °C`);
+    wx.textContent = parts.length ? parts.join(", ") : "Sin datos de clima";
+    mid.append(w, wx);
+    if (e.note) { const n = document.createElement("div"); n.className = "note"; n.textContent = e.note; mid.appendChild(n); }
+    const del = document.createElement("button"); del.className = "del"; del.type = "button"; del.textContent = "Borrar";
+    del.setAttribute("aria-label", `Borrar registro del ${fmtDate.format(new Date(e.t))}`);
+    del.onclick = () => {
+      if (!confirm("¿Borrar este registro?")) return;
+      entries = entries.filter(x => x.id !== e.id); persist(); render(); toast("Registro borrado.");
+    };
+    li.append(lv, mid, del); ul.appendChild(li);
+  }
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => drawChart());
+window.addEventListener("load", () => drawChart());
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+load();
+</script>
+</body>
+</html>
